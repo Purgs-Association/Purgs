@@ -1,4 +1,5 @@
 use crate::lexer::Token;
+use aott::error::{BuiltinLabel, Filtering};
 use aott::prelude::InputType;
 use std::fmt::Debug;
 use std::ops::Range;
@@ -29,11 +30,18 @@ pub enum ParserError {
     },
     #[error("expected end of file at {}..{}, found {found:?}", .span.start, .span.end)]
     ExpectedEOF { found: Token, span: Range<usize> },
-    #[error("filter faoled at {}..{}: {location}, with Token {token:?}", .span.start, .span.end)]
-    FilterFailed {
-        span: Span,
-        location: &'static std::panic::Location<'static>,
-        token: Token,
+
+    #[error("{label} at {}..{}, last token was {last_token:?}", .span.start, .span.end)]
+    Builtin {
+        span: Range<usize>,
+        label: aott::error::BuiltinLabel,
+        last_token: Option<Token>,
+    },
+    #[error("filtering {}, at {}..{}, but got {last_token:?}", .label.0, .span.start, .span.end)]
+    Filtering {
+        label: Filtering,
+        span: Range<usize>,
+        last_token: Option<Token>,
     },
 }
 
@@ -48,18 +56,7 @@ pub fn any_of<T: Debug>(things: &[T]) -> String {
     }
 }
 
-impl<I: InputType<Token = Token>> aott::error::Error<I> for ParserError {
-    fn filter_failed(
-        span: Range<usize>,
-        location: &'static std::panic::Location<'static>,
-        token: Token,
-    ) -> Self {
-        Self::FilterFailed {
-            span,
-            location,
-            token,
-        }
-    }
+impl<I: InputType<Token = Token>> aott::error::FundamentalError<I> for ParserError {
     fn expected_eof_found(span: Range<usize>, found: Token) -> Self {
         Self::ExpectedEOF { found, span }
     }
@@ -72,5 +69,25 @@ impl<I: InputType<Token = Token>> aott::error::Error<I> for ParserError {
     }
     fn unexpected_eof(span: Range<usize>, expected: Option<Vec<Token>>) -> Self {
         Self::UnexpectedEOF { span, expected }
+    }
+}
+
+impl<I: InputType<Token = Token>> aott::error::LabelError<I, BuiltinLabel> for ParserError {
+    fn from_label(span: Range<usize>, label: BuiltinLabel, last_token: Option<Token>) -> Self {
+        Self::Builtin {
+            span,
+            label,
+            last_token,
+        }
+    }
+}
+
+impl<I: InputType<Token = Token>> aott::error::LabelError<I, Filtering> for ParserError {
+    fn from_label(span: Range<usize>, label: Filtering, last_token: Option<Token>) -> Self {
+        Self::Filtering {
+            span,
+            label,
+            last_token,
+        }
     }
 }

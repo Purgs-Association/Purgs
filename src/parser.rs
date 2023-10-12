@@ -1,8 +1,8 @@
-use crate::lexer::{self, Token};
+use crate::lexer::Token;
 use crate::{ast::*, errors::*};
-use aott::input;
-use aott::{prelude::*, select, text::ascii::ident};
+use aott::{prelude::*, select};
 use logos::Logos;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::vec;
 
@@ -13,14 +13,18 @@ fn parse_string(input: Tokens) -> String {
     let mut string = String::new();
 
     loop {
-        if let Token::Quote(qu) = input.peek()? {
-            if qu == quote_char {
+        match input.peek()? {
+            Token::Quote(qu) => {
+                if qu == quote_char {
+                    input.skip()?;
+                    break;
+                }
+            }
+            token => {
                 input.skip()?;
-                break;
+                string.push_str(&Into::<String>::into(token))
             }
         }
-        let text = select!(Token::Text(text) => text).parse_with(input)?;
-        string.push_str(&text);
     }
 
     Ok(string)
@@ -138,22 +142,59 @@ fn tag(input: Tokens) -> Tag {
 }
 
 #[parser(extras=Extra)]
-fn file(input: Tokens) -> File {
-    let mut items = vec![];
+fn file(input: Tokens) -> Tag {
+    let mut og_parent = Tag {
+        name: "html".to_string(),
+        attrs: HashMap::new(),
+        children: vec![],
+        classes: vec![],
+        content: None,
+        id: None,
+    };
+
+    let mut parent_stack: Vec<Tag> = vec![];
+    let mut current_indent = 0;
+    let mut prev_indent = 0;
 
     loop {
-        items.push(tag(input)?);
-        if input.peek().is_ok() {
-            just(Token::Newline)(input)?;
-        } else {
-            break;
+        let Ok(peeked) = input.peek() else { break };
+        match peeked {
+            Token::Newline => {
+                input.skip()?;
+                continue;
+            }
+            Token::Indent(_indent) => {
+                input.skip()?;
+                current_indent += 1;
+            }
+
+            _ => {
+                let dif = current_indent - prev_indent;
+
+                match dif.cmp(&0) {
+                    Ordering::Greater => {}
+                    Ordering::Equal => {
+                        if let Some(parent) = parent_stack[..].last_mut() {
+                            parent.children.push(tag(input)?);
+                        } else {
+                            og_parent.children.push(tag(input)?);
+                        }
+                    }
+                    Ordering::Less => {}
+                }
+
+                og_parent.children.push(tag(input)?);
+
+                prev_indent = current_indent;
+                current_indent = 0;
+            }
         }
     }
 
-    Ok(File(items))
+    Ok(og_parent)
 }
 
-pub fn parse(input: &str) -> Result<File, crate::errors::Error> {
+pub fn parse(input: &str) -> Result<Tag, crate::errors::Error> {
     let mut tokens = vec![];
     let mut lexer = Token::lexer(input);
 
