@@ -142,15 +142,8 @@ fn tag(input: Tokens) -> Tag {
 }
 
 #[parser(extras=Extra)]
-fn file(input: Tokens) -> Tag {
-    let mut og_parent = Tag {
-        name: "html".to_string(),
-        attrs: HashMap::new(),
-        children: vec![],
-        classes: vec![],
-        content: None,
-        id: None,
-    };
+fn file(input: Tokens) -> Vec<Tag> {
+    let mut top_level_tags: Vec<Tag> = vec![];
 
     let mut parent_stack: Vec<Tag> = vec![];
     let mut current_indent = 0;
@@ -171,19 +164,23 @@ fn file(input: Tokens) -> Tag {
             _ => {
                 let dif = current_indent - prev_indent;
 
+                let parsed_tag = &tag(input)?;
+
                 match dif.cmp(&0) {
-                    Ordering::Greater => {}
+                    Ordering::Greater => {
+                        
+                    }
                     Ordering::Equal => {
-                        if let Some(parent) = parent_stack[..].last_mut() {
-                            parent.children.push(tag(input)?);
+                        if let Some(mut parent) = parent_stack.pop() {
+                            parent.children.push(parsed_tag.clone());
+
                         } else {
-                            og_parent.children.push(tag(input)?);
+                            top_level_tags.push(parsed_tag.clone());
                         }
+                        parent_stack.push(parsed_tag.clone());
                     }
                     Ordering::Less => {}
                 }
-
-                og_parent.children.push(tag(input)?);
 
                 prev_indent = current_indent;
                 current_indent = 0;
@@ -191,10 +188,10 @@ fn file(input: Tokens) -> Tag {
         }
     }
 
-    Ok(og_parent)
+    Ok(top_level_tags)
 }
 
-pub fn parse(input: &str) -> Result<Tag, crate::errors::Error> {
+pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {
     let mut tokens = vec![];
     let mut lexer = Token::lexer(input);
 
