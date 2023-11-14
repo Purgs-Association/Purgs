@@ -2,6 +2,7 @@ use regex::Regex;
 use std::cmp::Ordering;
 pub mod ast;
 pub mod errors;
+pub mod iter;
 mod lexer;
 mod parser;
 

@@ -1,33 +1,29 @@
-use crate::lexer::Token;
+use crate::lexer::{Lexer, Token};
 use crate::{ast::*, errors::*};
+use aott::input::SpannedInput;
 use aott::{prelude::*, select};
-use logos::Logos;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::ops::Range;
 use std::vec;
 
 #[parser(extras=Extra)]
 fn parse_string(input: Tokens) -> String {
-    let quote_char = select!(Token::Quote(text) => text).parse_with(input)?;
+    let quote_char = select!(Token::Quote(slice) => slice).parse_with(input)?;
 
-    let mut string = String::new();
+    let start = input.offset();
 
     loop {
-        match input.peek()? {
-            Token::Quote(qu) => {
-                if qu == quote_char {
-                    input.skip()?;
-                    break;
-                }
-            }
-            token => {
+        if let Token::Quote(slice) = input.peek()? {
+            if slice == quote_char {
+                let result = input.context()[input.span_since(start)].to_owned();
                 input.skip()?;
-                string.push_str(&Into::<String>::into(token))
+                return Ok(result);
             }
+        } else {
+            input.skip()?;
         }
     }
-
-    Ok(string)
 }
 
 #[parser(extras=Extra)]
@@ -74,32 +70,28 @@ fn parse_classes(input: Tokens) -> Vec<String> {
 
 #[parser(extras=Extra)]
 fn parse_content(input: Tokens) -> String {
-    let mut content = String::new();
+    let before = input.offset();
 
     loop {
-        match input.peek()? {
-            Token::Newline => break,
-            token => {
-                input.skip()?;
-                content.push_str(&Into::<String>::into(token))
-            }
+        if let Token::Newline = input.peek()? {
+            return Ok(input.context()[input.span_since(before)].to_owned());
+        } else {
+            input.skip()?;
         }
     }
-
-    Ok(content)
 }
 
 struct Extra;
-impl<I: InputType<Token = Token>> ParserExtras<I> for Extra {
-    type Context = u32;
+impl<I: InputType<Token = Token, Span = Range<usize>>> ParserExtras<I> for Extra {
+    type Context = String;
     type Error = ParserError;
 }
 
-type Tokens = Stream<std::vec::IntoIter<Token>>;
+type Tokens = SpannedInput<Token, Range<usize>, Stream<Lexer>>;
 
 #[parser(extras=Extra)]
 fn tag(input: Tokens) -> Tag {
-    let mut name = "div".to_string();
+    let mut name = "fuckyou".to_string();
     if let Token::Text(name_) = input.peek()? {
         input.skip()?;
         name = name_;
@@ -134,7 +126,23 @@ fn tag(input: Tokens) -> Tag {
     Ok(Tag {
         name,
         attrs,
-        children: vec![],
+        children: {
+            let mut children = vec![];
+            if let Ok((Token::Newline, Token::Indent)) = input.peek().and_then(|a| {
+                input.skip()?;
+                Ok((a, input.peek()?))
+            }) {
+                input.skip()?;
+                loop {
+                    children.push(tag(input)?);
+                    if let Ok(Token::Dedent) = input.peek() {
+                        input.skip()?;
+                        break;
+                    }
+                }
+            }
+            children
+        },
         classes,
         content,
         id,
@@ -145,6 +153,21 @@ fn tag(input: Tokens) -> Tag {
 fn file(input: Tokens) -> Vec<Tag> {
     let mut top_level_tags: Vec<Tag> = vec![];
 
+    loop {
+        if input.peek().is_ok() {
+            top_level_tags.push(tag(input)?);
+            if let Ok(Token::Newline) = input.peek() {
+                input.skip()?;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+    Ok(top_level_tags)
+
+    /*
     let mut parent_stack: Vec<Tag> = vec![];
     let mut current_indent = 0;
     let mut prev_indent = 0;
@@ -156,7 +179,7 @@ fn file(input: Tokens) -> Vec<Tag> {
                 input.skip()?;
                 continue;
             }
-            Token::Indent(_indent) => {
+            Token::Indent => {
                 input.skip()?;
                 current_indent += 1;
             }
@@ -164,22 +187,40 @@ fn file(input: Tokens) -> Vec<Tag> {
             _ => {
                 let dif = current_indent - prev_indent;
 
-                let parsed_tag = &tag(input)?;
+                let parsed_tag = tag(input)?;
 
                 match dif.cmp(&0) {
                     Ordering::Greater => {
-                        
-                    }
-                    Ordering::Equal => {
-                        if let Some(mut parent) = parent_stack.pop() {
+                        if let Some(parent) = parent_stack.last_mut() {
+                            println!("pushing {} to {}", parsed_tag.name, parent.name);
                             parent.children.push(parsed_tag.clone());
+                        }
+                        parent_stack.push(parsed_tag);
+                    }
 
+                    Ordering::Equal => {
+                        parent_stack.pop();
+                        if let Some(parent) = parent_stack.last_mut() {
+                            println!("pushing {} to {}", parsed_tag.name, parent.name);
+                            parent.children.push(parsed_tag.clone());
                         } else {
                             top_level_tags.push(parsed_tag.clone());
                         }
-                        parent_stack.push(parsed_tag.clone());
+                        parent_stack.push(parsed_tag);
                     }
-                    Ordering::Less => {}
+
+                    Ordering::Less => {
+                        for _ in (dif)..1 {
+                            parent_stack.pop();
+                        }
+                        if let Some(parent) = parent_stack.last_mut() {
+                            println!("pushing {} to {}", parsed_tag.name, parent.name);
+                            parent.children.push(parsed_tag.clone());
+                        } else {
+                            top_level_tags.push(parsed_tag.clone());
+                        }
+                        parent_stack.push(parsed_tag);
+                    }
                 }
 
                 prev_indent = current_indent;
@@ -187,17 +228,13 @@ fn file(input: Tokens) -> Vec<Tag> {
             }
         }
     }
-
-    Ok(top_level_tags)
+    */
 }
 
 pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {
-    let mut tokens = vec![];
-    let mut lexer = Token::lexer(input);
-
-    while let Some(token) = lexer.next() {
-        tokens.push(token.unwrap_or_else(|()| Token::Error(lexer.slice().to_owned())));
-    }
-
-    Ok(file.parse_with_context(Stream::from_iter(tokens), 0)?)
+    file.parse_with_context(
+        Stream::from_iter(crate::lexer::Lexer::new(input)).spanned(input.len()..input.len()),
+        input.to_owned(),
+    )
+    .map_err(Into::into)
 }
