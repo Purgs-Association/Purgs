@@ -2,7 +2,6 @@ use crate::lexer::{Lexer, Token};
 use crate::{ast::*, errors::*};
 use aott::input::SpannedInput;
 use aott::{prelude::*, select};
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::ops::Range;
 use std::vec;
@@ -127,21 +126,16 @@ fn tag(input: Tokens) -> Tag {
         name,
         attrs,
         children: {
-            let mut children = vec![];
             if let Ok((Token::Newline, Token::Indent)) = input.peek().and_then(|a| {
                 input.skip()?;
                 Ok((a, input.peek()?))
             }) {
                 input.skip()?;
-                loop {
-                    children.push(tag(input)?);
-                    if let Ok(Token::Dedent) = input.peek() {
-                        input.skip()?;
-                        break;
-                    }
-                }
+
+                file(input)?
+            } else {
+                vec![]
             }
-            children
         },
         classes,
         content,
