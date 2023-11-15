@@ -1,4 +1,3 @@
-use core::slice;
 use std::ops::Range;
 
 use aott::derive::IntoString;
@@ -15,7 +14,7 @@ pub enum SmallToken {
     #[regex(r"\n")]
     Newline,
 
-    #[regex(r"[a-zA-Z0-9]+")]
+    #[regex(r"[a-zA-Z0-9-]+")]
     Text,
 
     #[regex(r#""|'"#)]

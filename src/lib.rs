@@ -121,3 +121,71 @@ pub fn purgs(content: &str) -> String {
 
     final_str
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::ast::Tag;
+
+    fn check_str(input: &str) {
+        println!("Testing input \"{input}\"");
+        println!("Old: {}", crate::purgs(input));
+        println!(
+            "New: {:?}",
+            crate::parse(input).unwrap_or_else(|error| {
+                match &error {
+                    crate::errors::Error::Parser(
+                        crate::errors::ParserError::Filtering { span, .. }
+                        | crate::errors::ParserError::ExpectedEOF { span, .. }
+                        | crate::errors::ParserError::ExpectedToken { span, .. }
+                        | crate::errors::ParserError::UnexpectedEOF { span, .. },
+                    ) => eprintln!(
+                        "at {span_start}..{span_end}, slice: \"{slice}\" (the span + 3 chars before it)",
+                        span_start = span.start,
+                        span_end = span.end,
+                        slice = &input[(span.start.saturating_sub(3))..(span.end)]
+                    ),
+                    _ => unreachable!(),
+                };
+
+                panic!("Error: {error}")
+            })
+        );
+    }
+
+    fn test_str(input: &str, expected: Vec<Tag>) {
+        println!("Testing input \"{input}\"");
+        let out = crate::parse(input).unwrap_or_else(|error| {
+                match &error {
+                    crate::errors::Error::Parser(
+                        crate::errors::ParserError::Filtering { span, .. }
+                        | crate::errors::ParserError::ExpectedEOF { span, .. }
+                        | crate::errors::ParserError::ExpectedToken { span, .. }
+                        | crate::errors::ParserError::UnexpectedEOF { span, .. },
+                    ) => eprintln!(
+                        "at {span_start}..{span_end}, slice: \"{slice}\" (the span + 3 chars before it)",
+                        span_start = span.start,
+                        span_end = span.end,
+                        slice = &input[(span.start.saturating_sub(3))..(span.end)]
+                    ),
+                    _ => unreachable!(),
+                };
+
+                panic!("Error: {error}")
+            });
+        println!("Actual: {:?}", out);
+
+        assert_eq!(out, expected);
+    }
+
+    #[test]
+    fn simple() {
+        check_str("html\n\thead\n\t\tmeta(width=\"device-width=true\")\n\tbody\n\t\tdiv#content.hello Hello World");
+    }
+
+    #[test]
+    fn multi_dedent() {
+        test_str("html\n\thead\n\t\tmeta(width=\"device-width=true\")\n\tbody\n\t\tdiv#content.hello Hello World\nanotertoplevelthinglolhaha", vec![Tag { name: "html".to_string(), attrs: HashMap::new(), id: None, classes: vec![], children: vec![Tag { name: "head".to_string(), attrs: HashMap::new(), id: None, classes: vec![], children: vec![Tag { name: "meta".to_string(), attrs: HashMap::from_iter([("width".to_string(), Some("device-width=true".to_string()))]), id: None, classes: vec![], children: vec![], content: None }], content: None }], content: None }, Tag { name: "anotertoplevelthinglolhaha".to_string(), attrs: HashMap::new(), id: None, classes: vec![], children: vec![], content: None }]);
+    }
+}
