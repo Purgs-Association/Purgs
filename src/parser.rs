@@ -126,16 +126,31 @@ fn tag(input: Tokens) -> Tag {
         name,
         attrs,
         children: {
-            if let Ok((Token::Newline, Token::Indent)) = input.peek().and_then(|a| {
-                input.skip()?;
-                Ok((a, input.peek()?))
-            }) {
+            if let Some((Token::Newline, Token::Indent)) = input
+                .peek()
+                .ok()
+                .filter(|token| matches!(token, Token::Newline))
+                .and_then(|a| {
+                    input.skip().ok()?;
+                    Some((a, input.peek().ok()?))
+                })
+            {
+                println!("indenting");
                 input.skip()?;
 
                 file(input)?
             } else {
+                println!("no children");
                 vec![]
             }
+            /*if let Ok(Token::Newline) = input.peek() {
+                input.skip()?;
+                match input.peek() {
+                    Ok(Token::Indent) => println!("indenting"),
+                    Ok(Token::Dedent) => println!("dedenting"),
+                    _ => error,
+                }
+            }*/
         },
         classes,
         content,
@@ -226,6 +241,9 @@ fn file(input: Tokens) -> Vec<Tag> {
 }
 
 pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {
+    //let lexer = crate::lexer::Lexer::new(input);
+    //println!("{:#?}\n\n", lexer.collect::<Vec<_>>());
+
     file.parse_with_context(
         Stream::from_iter(crate::lexer::Lexer::new(input)).spanned(input.len()..input.len()),
         input.to_owned(),

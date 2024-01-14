@@ -1,14 +1,13 @@
 use std::ops::Range;
 
 use aott::derive::IntoString;
-use itertools::Itertools;
 use logos::Logos;
 
 use crate::iter::NanoPeek;
 
 #[derive(Clone, Logos, Debug, PartialEq, IntoString)]
 pub enum SmallToken {
-    #[regex(r"\t|[ ]{4}")]
+    #[regex(r"\t+|([ ]{4})+")]
     Indent,
 
     #[regex(r"\n")]
@@ -69,8 +68,9 @@ pub struct Token {
 pub struct Lexer {
     logos: NanoPeek<logos::Lexer<'static, SmallToken>>,
     indent: usize,
-    next_no_indent: bool,
+    next_no_indent: bool, // For the last dedent there is no indent token to check, so we need to know if we need to emit a dedent
     input: &'static str,
+    dedents_left: usize,
 }
 
 impl Iterator for Lexer {
@@ -79,6 +79,10 @@ impl Iterator for Lexer {
     fn next(&mut self) -> Option<Self::Item> {
         if self.next_no_indent {
             self.next_no_indent = false;
+            return Some((Token::Dedent, self.logos.inner.span()));
+        }
+        if self.dedents_left > 0 {
+            self.dedents_left -= 1;
             return Some((Token::Dedent, self.logos.inner.span()));
         }
         let Ok(token) = self.logos.next()? else {
@@ -106,27 +110,26 @@ impl Iterator for Lexer {
                 Token::Newline
             }
             SmallToken::Indent => {
-                let indent = self
-                    .logos
-                    .peeking_take_while(|token| matches!(token, Ok(SmallToken::Indent)))
-                    .count()
-                    + 1;
-                let token = if indent > self.indent {
+                let slice = self.logos.inner.slice();
+                let indent_len = if slice.starts_with('\t') {
+                    slice.len()
+                } else {
+                    slice.len() / 4
+                };
+
+                let token = if indent_len > self.indent {
                     Token::Indent
                 } else {
+                    self.dedents_left = (self.indent - indent_len).saturating_sub(1);
                     Token::Dedent
                 };
 
-                self.indent = indent;
+                self.indent = indent_len;
                 token
             }
         };
 
-        println!(
-            "kind: {:?}\nslice: {:?}\n\n",
-            kind,
-            self.logos.inner.slice()
-        );
+        println!("{:?} {:?}\n", kind, self.logos.inner.slice());
 
         Some((kind, self.logos.inner.span()))
     }
@@ -141,6 +144,7 @@ impl Lexer {
             indent: 0,
             next_no_indent: false,
             input: input_owned,
+            dedents_left: 0,
         }
     }
 }
