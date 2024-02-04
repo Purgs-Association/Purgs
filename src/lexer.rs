@@ -3,6 +3,8 @@ use std::ops::Range;
 use aott::derive::IntoString;
 use logos::Logos;
 
+use std::cmp::Ordering;
+
 use crate::iter::NanoPeek;
 
 #[derive(Clone, Logos, Debug, PartialEq, IntoString)]
@@ -69,7 +71,6 @@ pub struct Lexer {
     logos: NanoPeek<logos::Lexer<'static, SmallToken>>,
     indent: usize,
     next_no_indent: bool, // For the last dedent there is no indent token to check, so we need to know if we need to emit a dedent
-    input: &'static str,
     dedents_left: usize,
 }
 
@@ -78,10 +79,18 @@ impl Iterator for Lexer {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next_no_indent {
+            println!(
+                "dedent from next_no_indent\nDedents left: {}\n",
+                self.dedents_left
+            );
             self.next_no_indent = false;
             return Some((Token::Dedent, self.logos.inner.span()));
         }
         if self.dedents_left > 0 {
+            println!(
+                "dedent from dedents_left\nDedents left: {}\n",
+                self.dedents_left
+            );
             self.dedents_left -= 1;
             return Some((Token::Dedent, self.logos.inner.span()));
         }
@@ -104,7 +113,7 @@ impl Iterator for Lexer {
             SmallToken::Text => Token::Text(self.logos.inner.slice().to_owned()),
             SmallToken::Newline => {
                 if let Some(Ok(SmallToken::Indent)) = self.logos.peek() {
-                } else {
+                } else if self.indent > 0 {
                     self.next_no_indent = true;
                 }
                 Token::Newline
@@ -117,11 +126,13 @@ impl Iterator for Lexer {
                     slice.len() / 4
                 };
 
-                let token = if indent_len > self.indent {
-                    Token::Indent
-                } else {
-                    self.dedents_left = (self.indent - indent_len).saturating_sub(1);
-                    Token::Dedent
+                let token = match indent_len.cmp(&self.indent) {
+                    Ordering::Greater => Token::Indent,
+                    Ordering::Equal => return self.next(),
+                    Ordering::Less => {
+                        self.dedents_left = (self.indent - indent_len).saturating_sub(1);
+                        Token::Dedent
+                    }
                 };
 
                 self.indent = indent_len;
@@ -143,7 +154,6 @@ impl Lexer {
             logos: NanoPeek::new(SmallToken::lexer(input_owned)),
             indent: 0,
             next_no_indent: false,
-            input: input_owned,
             dedents_left: 0,
         }
     }

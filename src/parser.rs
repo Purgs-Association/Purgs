@@ -123,35 +123,35 @@ fn tag(input: Tokens) -> Tag {
     }
 
     Ok(Tag {
-        name,
-        attrs,
         children: {
-            if let Some((Token::Newline, Token::Indent)) = input
-                .peek()
-                .ok()
-                .filter(|token| matches!(token, Token::Newline))
-                .and_then(|a| {
-                    input.skip().ok()?;
-                    Some((a, input.peek().ok()?))
-                })
-            {
-                println!("indenting");
+            if let Ok(Token::Newline) = input.peek() {
+                let offset = input.save();
                 input.skip()?;
 
-                file(input)?
+                match input.peek() {
+                    Ok(Token::Indent) => {
+                        println!("{name} indenting");
+                        input.skip()?;
+                        file(input)?
+                    }
+                    Ok(Token::Dedent) => {
+                        println!("{name} dedenting");
+                        input.skip()?;
+                        vec![]
+                    }
+                    _ => {
+                        input.rewind(offset);
+                        println!("{name} newline but no children");
+                        vec![]
+                    }
+                }
             } else {
-                println!("no children");
+                println!("{name} no newline and no children");
                 vec![]
             }
-            /*if let Ok(Token::Newline) = input.peek() {
-                input.skip()?;
-                match input.peek() {
-                    Ok(Token::Indent) => println!("indenting"),
-                    Ok(Token::Dedent) => println!("dedenting"),
-                    _ => error,
-                }
-            }*/
         },
+        name,
+        attrs,
         classes,
         content,
         id,
@@ -175,69 +175,6 @@ fn file(input: Tokens) -> Vec<Tag> {
         }
     }
     Ok(top_level_tags)
-
-    /*
-    let mut parent_stack: Vec<Tag> = vec![];
-    let mut current_indent = 0;
-    let mut prev_indent = 0;
-
-    loop {
-        let Ok(peeked) = input.peek() else { break };
-        match peeked {
-            Token::Newline => {
-                input.skip()?;
-                continue;
-            }
-            Token::Indent => {
-                input.skip()?;
-                current_indent += 1;
-            }
-
-            _ => {
-                let dif = current_indent - prev_indent;
-
-                let parsed_tag = tag(input)?;
-
-                match dif.cmp(&0) {
-                    Ordering::Greater => {
-                        if let Some(parent) = parent_stack.last_mut() {
-                            println!("pushing {} to {}", parsed_tag.name, parent.name);
-                            parent.children.push(parsed_tag.clone());
-                        }
-                        parent_stack.push(parsed_tag);
-                    }
-
-                    Ordering::Equal => {
-                        parent_stack.pop();
-                        if let Some(parent) = parent_stack.last_mut() {
-                            println!("pushing {} to {}", parsed_tag.name, parent.name);
-                            parent.children.push(parsed_tag.clone());
-                        } else {
-                            top_level_tags.push(parsed_tag.clone());
-                        }
-                        parent_stack.push(parsed_tag);
-                    }
-
-                    Ordering::Less => {
-                        for _ in (dif)..1 {
-                            parent_stack.pop();
-                        }
-                        if let Some(parent) = parent_stack.last_mut() {
-                            println!("pushing {} to {}", parsed_tag.name, parent.name);
-                            parent.children.push(parsed_tag.clone());
-                        } else {
-                            top_level_tags.push(parsed_tag.clone());
-                        }
-                        parent_stack.push(parsed_tag);
-                    }
-                }
-
-                prev_indent = current_indent;
-                current_indent = 0;
-            }
-        }
-    }
-    */
 }
 
 pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {

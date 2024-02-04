@@ -13,10 +13,11 @@ const SELF_CLOSING_TAGS: [&str; 16] = [
     "meta", "param", "source", "track", "wbr",
 ];
 
-pub fn purgs(content: &str) -> String {
+#[allow(dead_code)]
+fn historical(content: &str) -> String {
     let mut final_str = "".to_owned();
     let mut stack: Vec<String> = vec![];
-    let stuff: Vec<_> = content.split("\n").collect();
+    let stuff: Vec<_> = content.split('\n').collect();
 
     let re = Regex::new(r#"([a-z\d]+)?(?:#([a-zA-Z-_\d]+))?(?:\.([a-zA-Z-_\d]+))?(\(?(?:(?:([a-zA-Z-_]+)=(?:"|')([^"]*)(?:"|'))(?:,\s*|\s+)?)*\))?(?:\s(.+))?"#).unwrap();
     let re_attr = Regex::new(r#"([a-zA-Z-_]+)=(?:"|')([^"]*)(?:"|')"#).unwrap();
@@ -24,7 +25,7 @@ pub fn purgs(content: &str) -> String {
     let mut prev_indent = -1;
 
     for item in stuff.iter() {
-        let filtered = item.replace("	", "");
+        let filtered = item.replace('\t', "");
         if !filtered.is_empty() {
             let old_len = item.len() as i32;
             let indent: i32 = old_len - filtered.len() as i32;
@@ -130,7 +131,7 @@ mod tests {
 
     fn check_str(input: &str) {
         println!("Testing input \"{input}\"");
-        println!("Old: {}", crate::purgs(input));
+        println!("Old: {}", crate::historical(input));
         println!(
             "New: {:?}",
             crate::parse(input).unwrap_or_else(|error| {
