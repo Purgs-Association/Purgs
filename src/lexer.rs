@@ -79,11 +79,6 @@ impl Iterator for Lexer {
     type Item = (Token, Range<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.just_dedented {
-            self.just_dedented = false;
-            println!("Newline from just_dedented\n");
-            return Some((Token::Newline, self.logos.inner.span()));
-        }
         if self.next_no_indent {
             println!(
                 "dedent from next_no_indent\nDedents left: {}\n",
@@ -100,6 +95,12 @@ impl Iterator for Lexer {
             );
             self.dedents_left -= 1;
             return Some((Token::Dedent, self.logos.inner.span()));
+        }
+        // just_dedented makes Newline->Dedent into Newline->Dedent->Newline so the parser doesn't suffer so put it after other checks that emit a dedent
+        if self.just_dedented {
+            self.just_dedented = false;
+            println!("Newline from just_dedented\n");
+            return Some((Token::Newline, self.logos.inner.span()));
         }
         let Ok(token) = self.logos.next()? else {
             return Some((
