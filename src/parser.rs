@@ -89,12 +89,15 @@ impl<I: InputType<Token = Token, Span = Range<usize>>> ParserExtras<I> for Extra
 type Tokens = SpannedInput<Token, Range<usize>, Stream<Lexer>>;
 
 #[parser(extras=Extra)]
-fn tag(input: Tokens) -> Tag {
+fn tag(input: Tokens) -> (Tag, bool) {
     let mut name = "fuckyou".to_string();
+    let mut has_dedented = false;
+
     if let Token::Text(name_) = input.peek()? {
         input.skip()?;
         name = name_;
     }
+    println!("starting on {}", name);
 
     let mut id = None;
 
@@ -122,7 +125,7 @@ fn tag(input: Tokens) -> Tag {
         content = Some(parse_content(input)?);
     }
 
-    Ok(Tag {
+    let final_tag = Tag {
         children: {
             if let Ok(Token::Newline) = input.peek() {
                 let offset = input.save();
@@ -136,6 +139,7 @@ fn tag(input: Tokens) -> Tag {
                     }
                     Ok(Token::Dedent) => {
                         println!("{name} dedenting");
+                        has_dedented = true;
                         input.skip()?;
                         vec![]
                     }
@@ -155,7 +159,11 @@ fn tag(input: Tokens) -> Tag {
         classes,
         content,
         id,
-    })
+    };
+
+    println!("returning: {:?}", final_tag);
+
+    Ok((final_tag, has_dedented))
 }
 
 #[parser(extras=Extra)]
@@ -164,13 +172,22 @@ fn file(input: Tokens) -> Vec<Tag> {
 
     loop {
         if input.peek().is_ok() {
-            top_level_tags.push(tag(input)?);
+            let (returned_tag, has_dedented) = tag(input)?;
+            let name_cp = returned_tag.name.clone();
+            top_level_tags.push(returned_tag);
+
+            if has_dedented {
+                println!("Dedent detected on {}, breaking", name_cp);
+                break;
+            }
             if let Ok(Token::Newline) = input.peek() {
                 input.skip()?;
             } else {
+                println!("peek ok but no newline");
                 break;
             }
         } else {
+            println!("peek no longer ok");
             break;
         }
     }

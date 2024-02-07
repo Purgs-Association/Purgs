@@ -18,7 +18,7 @@ fn htmlify(tag: &Tag) -> String {
             if let Some(value) = value.as_deref() {
                 format!("{key}=\"{value}\"")
             } else {
-                format!("{key}")
+                key.to_string()
             }
         })
         .collect::<Vec<_>>()
