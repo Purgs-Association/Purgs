@@ -168,20 +168,16 @@ fn tag(input: Tokens) -> Tag {
 fn file(input: Tokens) -> Vec<Tag> {
     let mut top_level_tags: Vec<Tag> = vec![];
 
-    loop {
-        if input.peek().is_ok() {
-            top_level_tags.push(tag(input)?);
-            if let Ok(Token::Newline) = input.peek() {
-                input.skip()?;
-            } else {
-                println!("peek no longer ok");
-                break;
-            }
+    while let Ok(token) = input.peek() {
+        top_level_tags.push(tag(input)?);
+        if let Token::Newline = &token {
+            input.skip()?;
         } else {
-            println!("peek no longer ok");
+            println!("token wasn't a newline, ending file {token:?}");
             break;
         }
     }
+    println!("peek no longer ok");
     Ok(top_level_tags)
 }
 
