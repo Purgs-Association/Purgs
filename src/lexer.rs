@@ -70,6 +70,7 @@ pub struct Token {
 pub struct Lexer {
     logos: NanoPeek<logos::Lexer<'static, SmallToken>>,
     indent: usize,
+    just_dedented: bool,
     next_no_indent: bool, // For the last dedent there is no indent token to check, so we need to know if we need to emit a dedent
     dedents_left: usize,
 }
@@ -78,12 +79,18 @@ impl Iterator for Lexer {
     type Item = (Token, Range<usize>);
 
     fn next(&mut self) -> Option<Self::Item> {
+        if self.just_dedented {
+            self.just_dedented = false;
+            println!("Newline from just_dedented\n");
+            return Some((Token::Newline, self.logos.inner.span()));
+        }
         if self.next_no_indent {
             println!(
                 "dedent from next_no_indent\nDedents left: {}\n",
                 self.dedents_left
             );
             self.next_no_indent = false;
+            self.just_dedented = true;
             return Some((Token::Dedent, self.logos.inner.span()));
         }
         if self.dedents_left > 0 {
@@ -131,6 +138,7 @@ impl Iterator for Lexer {
                     Ordering::Equal => return self.next(),
                     Ordering::Less => {
                         self.dedents_left = (self.indent - indent_len).saturating_sub(1);
+                        self.just_dedented = true;
                         Token::Dedent
                     }
                 };
@@ -153,6 +161,7 @@ impl Lexer {
         Self {
             logos: NanoPeek::new(SmallToken::lexer(input_owned)),
             indent: 0,
+            just_dedented: false,
             next_no_indent: false,
             dedents_left: 0,
         }

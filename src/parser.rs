@@ -89,10 +89,8 @@ impl<I: InputType<Token = Token, Span = Range<usize>>> ParserExtras<I> for Extra
 type Tokens = SpannedInput<Token, Range<usize>, Stream<Lexer>>;
 
 #[parser(extras=Extra)]
-fn tag(input: Tokens) -> (Tag, bool) {
+fn tag(input: Tokens) -> Tag {
     let mut name = "fuckyou".to_string();
-    let mut has_dedented = false;
-
     if let Token::Text(name_) = input.peek()? {
         input.skip()?;
         name = name_;
@@ -139,8 +137,8 @@ fn tag(input: Tokens) -> (Tag, bool) {
                     }
                     Ok(Token::Dedent) => {
                         println!("{name} dedenting");
-                        has_dedented = true;
                         input.skip()?;
+                        println!("{:?}", input.peek()?);
                         vec![]
                     }
                     _ => {
@@ -163,7 +161,7 @@ fn tag(input: Tokens) -> (Tag, bool) {
 
     println!("returning: {:?}", final_tag);
 
-    Ok((final_tag, has_dedented))
+    Ok(final_tag)
 }
 
 #[parser(extras=Extra)]
@@ -172,18 +170,11 @@ fn file(input: Tokens) -> Vec<Tag> {
 
     loop {
         if input.peek().is_ok() {
-            let (returned_tag, has_dedented) = tag(input)?;
-            let name_cp = returned_tag.name.clone();
-            top_level_tags.push(returned_tag);
-
-            if has_dedented {
-                println!("Dedent detected on {}, breaking", name_cp);
-                break;
-            }
+            top_level_tags.push(tag(input)?);
             if let Ok(Token::Newline) = input.peek() {
                 input.skip()?;
             } else {
-                println!("peek ok but no newline");
+                println!("peek no longer ok");
                 break;
             }
         } else {
