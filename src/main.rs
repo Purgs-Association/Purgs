@@ -9,5 +9,15 @@ fn main() {
         .with_env_filter(EnvFilter::from_default_env())
         .init();
 
-    println!("{:#?}", parse(include_str!("double_top.pug")));
+    let tags = parse(include_str!("tag.pug"));
+
+    println!("{:#?}", tags);
+    println!(
+        "{}",
+        tags.unwrap()
+            .into_iter()
+            .map(|tag| tag.htmlify())
+            .collect::<Vec<_>>()
+            .join("")
+    );
 }

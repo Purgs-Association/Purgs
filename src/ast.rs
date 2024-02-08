@@ -10,32 +10,35 @@ pub struct Tag {
     pub content: Option<String>,
 }
 
-fn htmlify(tag: &Tag) -> String {
-    let parsed_attrs = tag
-        .attrs
-        .iter()
-        .map(|(key, value)| {
-            if let Some(value) = value.as_deref() {
-                format!("{key}=\"{value}\"")
-            } else {
-                key.to_string()
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ");
+impl Tag {
+    pub fn htmlify(self) -> String {
+        let parsed_attrs = self
+            .attrs
+            .iter()
+            .map(|(key, value)| {
+                if let Some(value) = value.as_deref() {
+                    format!("{key}=\"{value}\"")
+                } else {
+                    key.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" ");
 
-    let parsed_children = tag
-        .children
-        .iter()
-        .map(htmlify)
-        .collect::<Vec<_>>()
-        .join("");
+        let parsed_children = self
+            .children
+            .iter()
+            .map(|child| child.clone().htmlify())
+            .collect::<Vec<_>>()
+            .join("");
+        let opening = format!("{name} {parsed_attrs}", name = self.name);
+        let opening_proper = opening.trim_end();
+        let final_str = format!(
+            "<{opening_proper}>{content}{parsed_children}</{name}>",
+            name = self.name,
+            content = self.content.as_deref().unwrap_or(""),
+        );
 
-    let final_str = format!(
-        "<{name} {parsed_attrs}>{content}{parsed_children}</{name}>",
-        name = tag.name,
-        content = tag.content.as_deref().unwrap_or(""),
-    );
-
-    final_str
+        final_str
+    }
 }
