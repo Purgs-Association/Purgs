@@ -137,7 +137,6 @@ fn tag(input: Tokens) -> Tag {
                     }
                     Ok(Token::Dedent) => {
                         println!("{name} dedenting");
-                        input.skip()?;
                         println!("{:?}", input.peek()?);
                         vec![]
                     }
@@ -173,6 +172,11 @@ fn file(input: Tokens) -> Vec<Tag> {
 
         match input.peek() {
             Ok(Token::Newline) => input.skip()?,
+            Ok(Token::Dedent) => {
+                input.skip()?;
+                println!("dedent from file");
+                break;
+            }
             other => {
                 println!("file ended on {other:?}");
                 break;
