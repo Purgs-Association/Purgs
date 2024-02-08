@@ -1,3 +1,4 @@
+use tracing::*;
 use crate::lexer::{Lexer, Token};
 use crate::{ast::*, errors::*};
 use aott::input::SpannedInput;
@@ -7,6 +8,7 @@ use std::ops::Range;
 use std::vec;
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn parse_string(input: Tokens) -> String {
     let quote_char = select!(Token::Quote(slice) => slice).parse_with(input)?;
 
@@ -26,6 +28,7 @@ fn parse_string(input: Tokens) -> String {
 }
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn parse_attributes(input: Tokens) -> HashMap<String, Option<String>> {
     let mut attrs = HashMap::new();
 
@@ -55,6 +58,7 @@ fn parse_attributes(input: Tokens) -> HashMap<String, Option<String>> {
 }
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn parse_classes(input: Tokens) -> Vec<String> {
     let mut classes = vec![];
 
@@ -68,6 +72,7 @@ fn parse_classes(input: Tokens) -> Vec<String> {
 }
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn parse_content(input: Tokens) -> String {
     let before = input.offset();
 
@@ -89,13 +94,15 @@ impl<I: InputType<Token = Token, Span = Range<usize>>> ParserExtras<I> for Extra
 type Tokens = SpannedInput<Token, Range<usize>, Stream<Lexer>>;
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn tag(input: Tokens) -> Tag {
     let mut name = "fuckyou".to_string();
     if let Token::Text(name_) = input.peek()? {
         input.skip()?;
         name = name_;
     }
-    println!("starting on {}", name);
+
+    trace!(?name, "starting tag");
 
     let mut id = None;
 
@@ -131,23 +138,22 @@ fn tag(input: Tokens) -> Tag {
 
                 match input.peek() {
                     Ok(Token::Indent) => {
-                        println!("{name} indenting");
+                        trace!(?name, "indenting");
                         input.skip()?;
                         file(input)?
                     }
                     Ok(Token::Dedent) => {
-                        println!("{name} dedenting");
-                        println!("{:?}", input.peek()?);
+                        trace!(?name, on = ?input.peek()?, "dedenting");
                         vec![]
                     }
                     _ => {
                         input.rewind(offset);
-                        println!("{name} newline but no children");
+                        trace!(?name, "newline but no children");
                         vec![]
                     }
                 }
             } else {
-                println!("{name} no newline and no children");
+                trace!(?name, "no newline and no children");
                 vec![]
             }
         },
@@ -158,12 +164,11 @@ fn tag(input: Tokens) -> Tag {
         id,
     };
 
-    println!("returning: {:?}", final_tag);
-
     Ok(final_tag)
 }
 
 #[parser(extras=Extra)]
+#[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn file(input: Tokens) -> Vec<Tag> {
     let mut top_level_tags: Vec<Tag> = vec![];
 
@@ -174,11 +179,11 @@ fn file(input: Tokens) -> Vec<Tag> {
             Ok(Token::Newline) => input.skip()?,
             Ok(Token::Dedent) => {
                 input.skip()?;
-                println!("dedent from file");
+                trace!("dedent from file");
                 break;
             }
-            other => {
-                println!("file ended on {other:?}");
+            on => {
+                trace!(?on, "file ended");
                 break;
             }
         }
@@ -188,6 +193,7 @@ fn file(input: Tokens) -> Vec<Tag> {
     Ok(top_level_tags)
 }
 
+#[instrument(level = "debug", ret, err)]
 pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {
     //let lexer = crate::lexer::Lexer::new(input);
     //println!("{:#?}\n\n", lexer.collect::<Vec<_>>());
