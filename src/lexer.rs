@@ -1,4 +1,5 @@
 use std::ops::Range;
+use tracing::*;
 
 use aott::derive::IntoString;
 use logos::Logos;
@@ -68,6 +69,7 @@ pub struct Token {
 }*/
 
 pub struct Lexer {
+    // HACK: We need 'static here to get rid of lifetimes in the parsers
     logos: NanoPeek<logos::Lexer<'static, SmallToken>>,
     indent: usize,
     just_dedented: bool,
@@ -77,12 +79,9 @@ pub struct Lexer {
 impl Iterator for Lexer {
     type Item = (Token, Range<usize>);
 
+    #[instrument(skip(self), level = "trace", ret, fields(self.dedents_left, self.indent, self.just_dedented, slice = self.logos.inner.slice()))]
     fn next(&mut self) -> Option<Self::Item> {
         if self.dedents_left > 0 {
-            println!(
-                "dedent from dedents_left\nDedents left: {}\n",
-                self.dedents_left
-            );
             self.dedents_left -= 1;
             if self.dedents_left == 0 {
                 self.just_dedented = true;
@@ -92,7 +91,6 @@ impl Iterator for Lexer {
         // just_dedented makes Newline->Dedent into Newline->Dedent->Newline so the parser doesn't suffer so put it after other checks that emit a dedent
         if self.just_dedented {
             self.just_dedented = false;
-            println!("Newline from just_dedented\n");
             return Some((Token::Newline, self.logos.inner.span()));
         }
         let Ok(token) = self.logos.next()? else {
@@ -142,18 +140,17 @@ impl Iterator for Lexer {
             }
         };
 
-        println!("{:?} {:?}\n", kind, self.logos.inner.slice());
-
         Some((kind, self.logos.inner.span()))
     }
 }
 
 impl Lexer {
     pub fn new(input: &str) -> Self {
-        let input_owned = &*Box::leak::<'static>(input.to_owned().into_boxed_str());
-
         Self {
-            logos: NanoPeek::new(SmallToken::lexer(input_owned)),
+            // FIXME: We don't deallocate this but currently I don't care
+            logos: NanoPeek::new(SmallToken::lexer(Box::leak::<'static>(
+                input.to_owned().into_boxed_str(),
+            ))),
             indent: 0,
             just_dedented: false,
             dedents_left: 0,
