@@ -1,4 +1,5 @@
 use purgs::parse;
+use tracing::*;
 use tracing_subscriber::EnvFilter;
 
 fn main() {
@@ -6,18 +7,26 @@ fn main() {
     tracing_subscriber::fmt()
         .without_time()
         .with_target(false)
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            EnvFilter::builder()
+            // default level = info
+                .with_default_directive(Level::INFO.into())
+                .from_env_lossy(),
+        )
         .init();
 
-    let tags = parse(include_str!("tag.pug"));
+    let tags = parse(include_str!("tag.pug")).unwrap_or_else(|e| {
+        error!("{e}");
+        panic!()
+    });
 
-    println!("{:#?}", tags);
-    println!(
+    trace!("{:#?}", tags);
+    info!(
         "{}",
-        tags.unwrap()
-            .into_iter()
+        tags
+            .iter()
             .map(|tag| tag.htmlify())
             .collect::<Vec<_>>()
-            .join("")
+            .join(""),
     );
 }

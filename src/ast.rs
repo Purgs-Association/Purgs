@@ -11,32 +11,49 @@ pub struct Tag {
 }
 
 impl Tag {
-    pub fn htmlify(self) -> String {
-        let parsed_attrs = self
-            .attrs
+    pub fn htmlify(&self) -> String {
+        let Self {
+            name,
+            attrs,
+            id,
+            classes,
+            children,
+            content,
+        } = self;
+        let classes = classes.join(" ");
+
+        let parsed_attrs = attrs
             .iter()
+            // remap these so we can append id and classes by chaining and not a new hashmap
+            .map(|(key, value)| (key.as_str(), value.as_deref()))
+            .chain(id.as_deref().map(|id| ("id", Some(id))))
+            .chain(
+                if classes.is_empty() {
+                    None
+                } else {
+                    Some(("class", Some(classes.as_str())))
+                }
+            )
             .map(|(key, value)| {
-                if let Some(value) = value.as_deref() {
-                    format!("{key}=\"{value}\"")
+                if let Some(value) = value {
+                    format!(" {key}=\"{value}\"")
                 } else {
                     key.to_string()
                 }
             })
             .collect::<Vec<_>>()
-            .join(" ");
+            // first one starts with space, which separates it from {name}, others spaced normally
+            .join("");
 
-        let parsed_children = self
-            .children
+        let parsed_children = children
             .iter()
-            .map(|child| child.clone().htmlify())
+            .map(|child| child.htmlify())
             .collect::<Vec<_>>()
             .join("");
-        let opening = format!("{name} {parsed_attrs}", name = self.name);
-        let opening_proper = opening.trim_end();
+
         let final_str = format!(
-            "<{opening_proper}>{content}{parsed_children}</{name}>",
-            name = self.name,
-            content = self.content.as_deref().unwrap_or(""),
+            "<{name}{parsed_attrs}>{content}{parsed_children}</{name}>",
+            content = content.as_deref().unwrap_or(""),
         );
 
         final_str

@@ -1,4 +1,3 @@
-use tracing::*;
 use crate::lexer::{Lexer, Token};
 use crate::{ast::*, errors::*};
 use aott::input::SpannedInput;
@@ -6,6 +5,7 @@ use aott::{prelude::*, select};
 use std::collections::HashMap;
 use std::ops::Range;
 use std::vec;
+use tracing::*;
 
 #[parser(extras=Extra)]
 #[instrument(level = "trace", skip(input), ret, err, parent = None)]
@@ -189,15 +189,12 @@ fn file(input: Tokens) -> Vec<Tag> {
         }
     }
 
-    println!("peek no longer ok");
+    trace!("peek no longer ok");
     Ok(top_level_tags)
 }
 
 #[instrument(level = "debug", ret, err)]
 pub fn parse(input: &str) -> Result<Vec<Tag>, crate::errors::Error> {
-    //let lexer = crate::lexer::Lexer::new(input);
-    //println!("{:#?}\n\n", lexer.collect::<Vec<_>>());
-
     file.parse_with_context(
         Stream::from_iter(crate::lexer::Lexer::new(input)).spanned(input.len()..input.len()),
         input.to_owned(),
