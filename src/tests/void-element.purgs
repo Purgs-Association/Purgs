@@ -1,0 +1,8 @@
+html
+	head
+		title hello, this is gonna be void elements and i love them
+	body
+		p hi
+		br
+		p get ready, firefox
+		input(type="text", placeholder="funny")

@@ -15,13 +15,13 @@ fn main() {
         )
         .init();
 
-    let tags = parse(include_str!("tag.pug")).unwrap_or_else(|e| {
+    let tags = parse(include_str!("./tests/void-element.purgs")).unwrap_or_else(|e| {
         error!("{e}");
         panic!()
     });
 
     trace!("{:#?}", tags);
-    info!(
+    println!(
         "{}",
         tags
             .iter()
