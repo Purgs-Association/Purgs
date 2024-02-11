@@ -1,5 +1,5 @@
 html
-    head
-	meta(width="device-width=true")
-    body
-	div#content.hello Hello World
+	head
+		meta(width="device-width=true")
+	body
+		div#content.hello Hello World
