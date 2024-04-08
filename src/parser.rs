@@ -96,7 +96,7 @@ type Tokens = SpannedInput<Token, Range<usize>, Stream<Lexer>>;
 #[parser(extras=Extra)]
 #[instrument(level = "trace", skip(input), ret, err, parent = None)]
 fn tag(input: Tokens) -> Tag {
-    let mut name = "fuckyou".to_string();
+    let mut name = "div".to_string();
     if let Token::Text(name_) = input.peek()? {
         input.skip()?;
         name = name_;
